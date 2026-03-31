@@ -33,13 +33,30 @@ class ActivationService {
   }
 
   /// Verifies [token] against the embedded public key and [deviceId].
+  static String? lastError;
+
   static bool _verifyToken(String token, String deviceId) {
     try {
-      if (kEcPublicKeyPem.contains('PLACEHOLDER')) return false;
+      if (kEcPublicKeyPem.contains('PLACEHOLDER')) {
+        lastError = 'PLACEHOLDER key';
+        return false;
+      }
       final jwt = JWT.verify(token, ECPublicKey(kEcPublicKeyPem));
       final payload = jwt.payload as Map<String, dynamic>;
-      return payload['deviceId'] == deviceId && payload['app'] == kAppId;
-    } catch (_) {
+      final jwtDeviceId = payload['deviceId'] as String?;
+      final jwtApp = payload['app'] as String?;
+      if (jwtDeviceId != deviceId) {
+        lastError = 'deviceId mismatch: JWT=$jwtDeviceId device=$deviceId';
+        return false;
+      }
+      if (jwtApp != kAppId) {
+        lastError = 'app mismatch: JWT=$jwtApp expected=$kAppId';
+        return false;
+      }
+      lastError = null;
+      return true;
+    } catch (e) {
+      lastError = e.toString();
       return false;
     }
   }

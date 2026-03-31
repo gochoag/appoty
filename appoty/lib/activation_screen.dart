@@ -15,6 +15,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
   String _deviceId = '';
   bool _loading = true;
   bool _activating = false;
+  bool _activated = false;
   String? _error;
   final _codeController = TextEditingController();
   bool _scanning = false;
@@ -41,7 +42,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
   }
 
   Future<void> _activate() async {
-    final raw = ActivationService.stripFormatting(_codeController.text);
+    final raw = _codeController.text.trim();
     if (raw.isEmpty) {
       setState(() => _error = 'Ingresa el código de activación');
       return;
@@ -53,11 +54,16 @@ class _ActivationScreenState extends State<ActivationScreen> {
     final ok = await ActivationService.activate(raw);
     if (!mounted) return;
     if (ok) {
-      widget.onActivated();
+      setState(() => _activated = true);
+      await Future.delayed(const Duration(milliseconds: 1800));
+      if (mounted) widget.onActivated();
     } else {
+      final err = ActivationService.lastError ?? '';
       setState(() {
         _activating = false;
-        _error = 'Código inválido o no corresponde a este dispositivo.';
+        _error = err.contains('mismatch')
+            ? 'Este código no corresponde a este dispositivo.'
+            : 'Código de activación inválido.';
       });
     }
   }
@@ -146,12 +152,71 @@ class _ActivationScreenState extends State<ActivationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
-      body: SafeArea(
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.greenAccent),
-              )
-            : _buildContent(),
+      body: _activated
+          ? _buildSuccessOverlay()
+          : SafeArea(
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.greenAccent,
+                      ),
+                    )
+                  : _buildContent(),
+            ),
+    );
+  }
+
+  Widget _buildSuccessOverlay() {
+    return Container(
+      color: const Color(0xFF0A0A0A),
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.elasticOut,
+          builder: (context, value, child) {
+            return Transform.scale(scale: value, child: child);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF1B5E20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.greenAccent.withOpacity(0.4),
+                      blurRadius: 40,
+                      spreadRadius: 8,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Colors.white,
+                  size: 72,
+                ),
+              ),
+              const SizedBox(height: 28),
+              const Text(
+                '¡Activado!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Bienvenido a AppOty',
+                style: TextStyle(color: Colors.white54, fontSize: 15),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
